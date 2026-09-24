@@ -110,7 +110,9 @@ set_scale() {
   # Keep the current position instead of resetting to "auto", so explicit
   # multi-monitor layouts (e.g. DP-1 at 0x0 plus DP-2 at 1920x0) survive a
   # scale change. The mode names no refresh rate so Hyprland keeps the
-  # current one instead of fighting float formatting (164.92 vs 164.91701).
+  # current one instead of fighting float formatting (monitors.lua pins
+  # 164.92 while Hyprland reports 164.91701). Live-verified: re-applying
+  # the active scale leaves mode, rate and position untouched.
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}\", position = \"${pos_x}x${pos_y}\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
