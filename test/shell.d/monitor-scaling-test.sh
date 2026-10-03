@@ -159,3 +159,26 @@ grep -Fx 'local omarchy_monitor_scale = 1' "$monitor_lua" >/dev/null ||
 grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling persists integer GDK scale with an explicit entry present"
 pass "monitor scaling persists into the explicit per-output entry"
+
+# An explicit entry that reads the shared variable is persisted through it.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 1
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = omarchy_monitor_scale })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists through an explicit entry that reads omarchy_monitor_scale"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = omarchy_monitor_scale })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves an explicit entry that reads omarchy_monitor_scale intact"
+pass "monitor scaling persists through an explicit entry that reads omarchy_monitor_scale"
+
+# An explicit entry with an automatic scale takes the chosen one.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = "auto" })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into an explicit entry with an automatic scale"
+pass "monitor scaling persists into an explicit entry with an automatic scale"
