@@ -119,8 +119,8 @@ set_scale() {
   # per-output entry wins over the generic catch-all, so update it in place
   # where one sets its own scale and leave the catch-all alone. An entry that
   # reads omarchy_monitor_scale falls through to updating that variable.
-  if [[ -f $monitor_lua ]] && grep -qE "^hl\.monitor\(\{ output = \"$active_monitor\".*scale = (\"auto\"|[0-9.]+)" "$monitor_lua"; then
-    sed -i -E "s#^(hl\.monitor\(\{ output = \"$active_monitor\".*scale = )(\"auto\"|[0-9.]+)(.*)\$#\1${new_scale}\3#" "$monitor_lua"
+  if [[ -f $monitor_lua ]] && grep -qE "^hl\.monitor\(\{ output = \"$active_monitor\"[^}]*scale = (\"auto\"|[0-9.]+)" "$monitor_lua"; then
+    sed -i -E "s#^(hl\.monitor\(\{ output = \"$active_monitor\"[^}]*scale = )(\"auto\"|[0-9.]+)(.*)\$#\1${new_scale}\3#" "$monitor_lua"
     if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
       sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
     fi
