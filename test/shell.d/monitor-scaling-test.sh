@@ -139,11 +139,9 @@ OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITO
 grep -F 'position = "1920x0"' "$eval_out" >/dev/null || fail "monitor scaling preserves the explicit monitor position"
 pass "monitor scaling preserves the explicit monitor position"
 
-# The mode names no refresh rate, so Hyprland keeps the current one instead
-# of fighting float formatting (164.92 vs 164.91701).
-grep -F 'mode = "1920x1080"' "$eval_out" >/dev/null || fail "monitor scaling names the mode without a refresh rate"
-! grep -q "@" "$eval_out" || fail "monitor scaling sends no refresh rate suffix"
-pass "monitor scaling names the mode without a refresh rate"
+# The mode keeps the current refresh rate; without one Hyprland requests 60Hz.
+grep -E 'mode = "1920x1080@120(\.0)?"' "$eval_out" >/dev/null || fail "monitor scaling keeps the current refresh rate"
+pass "monitor scaling keeps the current refresh rate"
 
 # An explicit per-output entry keeps its own scale, so the change survives
 # a reload instead of reverting to the stale explicit value.

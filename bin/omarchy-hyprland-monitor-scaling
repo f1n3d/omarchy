@@ -79,6 +79,7 @@ set_scale() {
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
+  local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
   local pos_x="$(echo "$monitor_info" | jq -r '.x // 0')"
   local pos_y="$(echo "$monitor_info" | jq -r '.y // 0')"
 
@@ -89,7 +90,7 @@ set_scale() {
     exit 1
   fi
 
-  if [[ ! $width =~ ^[0-9]+$ ]] || [[ ! $height =~ ^[0-9]+$ ]]; then
+  if [[ ! $width =~ ^[0-9]+$ ]] || [[ ! $height =~ ^[0-9]+$ ]] || [[ ! $refresh_rate =~ ^[0-9]+([.][0-9]+)?$ ]]; then
     echo "Refusing to scale a monitor with unknown geometry" >&2
     exit 1
   fi
@@ -109,11 +110,9 @@ set_scale() {
 
   # Keep the current position instead of resetting to "auto", so explicit
   # multi-monitor layouts (e.g. DP-1 at 0x0 plus DP-2 at 1920x0) survive a
-  # scale change. The mode names no refresh rate so Hyprland keeps the
-  # current one instead of fighting float formatting (monitors.lua pins
-  # 164.92 while Hyprland reports 164.91701). Live-verified: re-applying
-  # the active scale leaves mode, rate and position untouched.
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}\", position = \"${pos_x}x${pos_y}\", scale = $new_scale })" >/dev/null
+  # scale change. The mode keeps the current refresh rate: without one,
+  # Hyprland requests 60Hz and drops a high-refresh display to it.
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${pos_x}x${pos_y}\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
   # Persist to monitors.lua so the scale survives reboots. An explicit
