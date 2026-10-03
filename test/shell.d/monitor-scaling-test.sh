@@ -185,6 +185,15 @@ grep -F -- '-- was scale = 1' "$monitor_lua" >/dev/null ||
   fail "monitor scaling leaves a trailing comment alone"
 pass "monitor scaling ignores a scale named in a trailing comment"
 
+# A scale written as an expression is left whole rather than half-rewritten.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 3 / 2 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 3 / 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves a scale expression whole"
+pass "monitor scaling leaves a scale expression whole"
+
 # An explicit entry with an automatic scale takes the chosen one.
 cat >"$monitor_lua" <<'LUA'
 local omarchy_monitor_scale = 1
