@@ -203,3 +203,33 @@ OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
 grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 2 })' "$monitor_lua" >/dev/null ||
   fail "monitor scaling persists into an explicit entry with an automatic scale"
 pass "monitor scaling persists into an explicit entry with an automatic scale"
+
+# A nested table inside the entry does not end it, so its own scale is found.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", reserved_area = { top = 24 }, position = "0x0", scale = 1.25 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1", reserved_area = { top = 24 }, position = "0x0", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into an explicit entry with a nested table"
+grep -Fx 'local omarchy_monitor_scale = 1' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the catch-all alone with a nested table entry present"
+pass "monitor scaling persists into an explicit entry with a nested table"
+
+# Semicolons separate fields just like commas.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 2; transform = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into an explicit entry with semicolon separators"
+pass "monitor scaling persists into an explicit entry with semicolon separators"
+
+# A block comment inside the entry is neither a key nor a value.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", --[[ internal panel ]] position = "0x0", scale = 1.25 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1", --[[ internal panel ]] position = "0x0", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into an explicit entry with a block comment"
+pass "monitor scaling persists into an explicit entry with a block comment"
