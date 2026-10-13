@@ -122,11 +122,13 @@ set_scale() {
   # Comments count as whitespace around fields, but must stay intact in the
   # file. Skip whole comments and strings when looking for a live rule; reading
   # the file together also preserves code on either side of a multi-line comment.
+  # Comments and long strings are atomic, so backtracking cannot end one early
+  # or late and reach a scale inside it or in the next rule.
   local rewrite='
     BEGIN { $name = shift @ARGV; $scale = shift @ARGV; }
     my $string = qr/"(?:\\.|[^"\\])*"|\x27(?:\\.|[^\x27\\])*\x27/s;
-    my $long_string = qr/\[(=*)\[.*?\]\g{-1}\]/s;
-    my $comment = qr/--(?:$long_string|(?!\[=*\[)[^\n]*)/;
+    my $long_string = qr/(?>\[(=*)\[.*?\]\g{-1}\])/s;
+    my $comment = qr/(?>--(?:$long_string|(?!\[=*\[)[^\n]*))/;
     my $space = qr/(?:\s|$comment)*/;
     my $field = qr/(?:$string|$long_string|$comment|[^"\x27{}()\[\]-]|-(?!-)|\[(?!=*\[))/;
     my $fields = qr/(?:$field|\{(?:$field)*\})*/;

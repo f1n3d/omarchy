@@ -356,8 +356,38 @@ cat >"$monitor_lua" <<'LUA'
 hl.monitor({ output = "eDP-1", scale = 1 * 1 })
 LUA
 written=$(stat -c '%i %y' "$monitor_lua")
+rm -f "$eval_out"
 OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling applies 2x with nothing to persist into"
 [[ $(stat -c '%i %y' "$monitor_lua") == "$written" ]] ||
   fail "monitor scaling leaves a config with nothing to persist into unwritten"
 pass "monitor scaling leaves a config with nothing to persist into unwritten"
+
+# A comment or long string must be matched whole, or the match can stretch
+# into the next rule or stop inside a comment and rewrite a scale there.
+assert_variable_rule_saved() {
+  local description="$1"
+  cat >"$monitor_lua"
+  sed 's/^local omarchy_monitor_scale = 1$/local omarchy_monitor_scale = 2/' "$monitor_lua" >"$test_tmp/expected.lua"
+  OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+  cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "$description" "$(diff -u "$test_tmp/expected.lua" "$monitor_lua")"
+  pass "$description"
+}
+
+assert_variable_rule_saved "monitor scaling leaves the next rule alone after a block comment" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", --[[ first ]] scale = omarchy_monitor_scale })
+hl.monitor({ output = "DP-2", --[[ second ]] scale = 1.25 })
+LUA
+
+assert_variable_rule_saved "monitor scaling leaves the next rule alone after a long string" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", mode = [[preferred]], scale = omarchy_monitor_scale })
+hl.monitor({ output = "DP-2", mode = [[preferred]], scale = 1.25 })
+LUA
+
+assert_variable_rule_saved "monitor scaling leaves a scale inside a line comment alone" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", -- previous, scale = 1.25,
+  scale = omarchy_monitor_scale })
+LUA
