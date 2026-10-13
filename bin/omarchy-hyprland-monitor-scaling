@@ -119,25 +119,25 @@ set_scale() {
   # per-output entry wins over the generic catch-all, so update it in place
   # where one sets its own scale and leave the catch-all alone. An entry that
   # reads omarchy_monitor_scale falls through to updating that variable.
-  # Match single-line rules and whole scalars, as in the clamshell reader.
-  # Consume strings, inline tables and comments whole so their contents
-  # cannot pose as the entry's scale. Stop before the closing monitor call.
-  local fields="([^\"'{}()-]|\"[^\"]*\"|'[^']*'|\{[^{}]*\}|--\[\[([^]]|\][^]])*\]\])*"
-  local scale_pattern="^([[:space:]]*hl\.monitor\(\{[[:space:]]*output[[:space:]]*=[[:space:]]*['\"]${active_monitor//./\\.}['\"]"
-  scale_pattern+="${fields}[,;][[:space:]]*scale[[:space:]]*=[[:space:]]*)(\"auto\"|'auto'|[0-9.]+)([[:space:]]*[,;}])"
-  # Skip multi-line block comments as well. The w flag reports replacements
-  # while -i preserves all lines, letting variable entries take the fallback.
-  if [[ -f $monitor_lua ]] && [[ -n $(sed -i -E '
-    /--\[\[/ {
-      /\]\]/! {
-        :comment
-        n
-        /\]\]/!b comment
-        b
-      }
-    }
-    s#'"$scale_pattern"'#\1'"$new_scale"'\5#w /dev/stdout
-  ' "$monitor_lua") ]]; then
+  # Comments count as whitespace around fields, but must stay intact in the
+  # file. Skip whole comments and strings when looking for a live rule; reading
+  # the file together also preserves code on either side of a multi-line comment.
+  if [[ -f $monitor_lua ]] && [[ -n $(perl -0777 -i -pe '
+    BEGIN { $name = shift @ARGV; $scale = shift @ARGV; }
+    my $string = qr/"(?:\\.|[^"\\])*"|\x27(?:\\.|[^\x27\\])*\x27/s;
+    my $long_string = qr/\[(=*)\[.*?\]\g{-1}\]/s;
+    my $comment = qr/--(?:$long_string|(?!\[=*\[)[^\n]*)/;
+    my $space = qr/(?:\s|$comment)*/;
+    my $field = qr/(?:$string|$long_string|$comment|[^"\x27{}()\[\]-]|-(?!-)|\[(?!=*\[))/;
+    my $fields = qr/(?:$field|\{(?:$field)*\})*/;
+    my $changed = s{
+      (?:$comment|$string|$long_string)(*SKIP)(*F)
+      | (?<prefix>\bhl\.monitor\($space\{$space output$space=$space ["\x27]\Q$name\E["\x27]
+          $fields [,;]$space scale$space=$space)
+        (?:"auto"|\x27auto\x27|[0-9.]+)(?=$space [,;\}])
+    }{$+{prefix} . $scale}gex;
+    print STDOUT "rewritten\n" if $changed;
+  ' "$active_monitor" "$new_scale" "$monitor_lua") ]]; then
     if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
       sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
     fi

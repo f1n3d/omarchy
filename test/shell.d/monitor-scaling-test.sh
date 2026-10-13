@@ -283,3 +283,69 @@ OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
 cmp -s "$monitor_lua" "$test_tmp/expected.lua" ||
   fail "monitor scaling leaves a quoted scale expression whole"
 pass "monitor scaling leaves a quoted scale expression whole"
+
+# Replace only the marked live value; comments, other outputs and the shared
+# default must remain byte-for-byte intact in every comment-boundary case.
+assert_commented_rule_saved() {
+  local description="$1" rule
+  rule=$(cat)
+  printf 'local omarchy_monitor_scale = 1\n%s\n' "${rule//@scale@/1.25}" >"$monitor_lua"
+  printf 'local omarchy_monitor_scale = 1\n%s\n' "${rule//@scale@/2}" >"$test_tmp/expected.lua"
+  OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+  cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "$description" "$(diff -u "$test_tmp/expected.lua" "$monitor_lua")"
+  pass "$description"
+}
+
+assert_commented_rule_saved "monitor scaling saves a field immediately after an inline comment" <<'LUA'
+hl.monitor({ output = "eDP-1", --[[ panel ]] scale = @scale@ })
+LUA
+
+assert_commented_rule_saved "monitor scaling saves a value immediately before an inline comment" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = @scale@ --[[ panel ]] })
+LUA
+
+assert_commented_rule_saved "monitor scaling saves live code before a multi-line comment" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = @scale@ }) --[[ notes
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]]
+LUA
+
+assert_commented_rule_saved "monitor scaling saves live code after a multi-line comment" <<'LUA'
+--[[ notes
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]] hl.monitor({ output = "eDP-1", scale = @scale@ })
+LUA
+
+assert_commented_rule_saved "monitor scaling treats comments around the key and value as whitespace" <<'LUA'
+hl.monitor({ output = "eDP-1"; --[[ scale = 4, ]] scale --[[ key ]] = --[[ value ]] @scale@ --[[ bracket ] and scale = 3, ]] })
+LUA
+
+assert_commented_rule_saved "monitor scaling saves live rules around consecutive long comments" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = @scale@ }) --[=[ notes containing ]]
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]=] --[[ more notes
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]] hl.monitor({ output = "eDP-1", scale = @scale@ })
+hl.monitor({ output = "DP-2", scale = 1.25 })
+LUA
+
+assert_commented_rule_saved "monitor scaling ignores comment markers and monitor rules inside strings" <<'LUA'
+local double_quoted = "escaped \" --[[ hl.monitor({ output = \"eDP-1\", scale = 1.25 })"
+local single_quoted = 'escaped \' --[[ hl.monitor({ output = "eDP-1", scale = 1.25 })'
+local long_quoted = [=[ example containing ]]
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]=]
+-- A line comment mentioning --[[ must not hide the next rule.
+hl.monitor({ output = "eDP-1", scale = @scale@ })
+LUA
+
+# Comments are whitespace, not terminators that make an expression a scalar.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = 3 --[[ , scale = 1, ]] / 2 })
+hl.monitor({ output = "eDP-1", scale = "auto" --[[ , scale = 1, ]] .. "" })
+LUA
+cp "$monitor_lua" "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" ||
+  fail "monitor scaling leaves expressions with embedded comments intact"
+pass "monitor scaling leaves expressions with embedded comments intact"
