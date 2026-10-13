@@ -122,7 +122,7 @@ set_scale() {
   # Comments count as whitespace around fields, but must stay intact in the
   # file. Skip whole comments and strings when looking for a live rule; reading
   # the file together also preserves code on either side of a multi-line comment.
-  if [[ -f $monitor_lua ]] && [[ -n $(perl -0777 -i -pe '
+  local rewrite='
     BEGIN { $name = shift @ARGV; $scale = shift @ARGV; }
     my $string = qr/"(?:\\.|[^"\\])*"|\x27(?:\\.|[^\x27\\])*\x27/s;
     my $long_string = qr/\[(=*)\[.*?\]\g{-1}\]/s;
@@ -137,7 +137,11 @@ set_scale() {
         (?:"auto"|\x27auto\x27|[0-9.]+)(?=$space [,;\}])
     }{$+{prefix} . $scale}gex;
     print STDOUT "rewritten\n" if $changed;
-  ' "$active_monitor" "$new_scale" "$monitor_lua") ]]; then
+  '
+  # Write only when a rule matches: Hyprland reloads on any write, which would
+  # undo the scale just applied.
+  if [[ -f $monitor_lua ]] && [[ -n $(perl -0777 -ne "$rewrite" "$active_monitor" "$new_scale" "$monitor_lua") ]]; then
+    perl -0777 -i -pe "$rewrite" "$active_monitor" "$new_scale" "$monitor_lua" >/dev/null
     if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
       sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
     fi

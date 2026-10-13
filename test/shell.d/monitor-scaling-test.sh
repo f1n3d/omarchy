@@ -349,3 +349,15 @@ OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
 cmp -s "$monitor_lua" "$test_tmp/expected.lua" ||
   fail "monitor scaling leaves expressions with embedded comments intact"
 pass "monitor scaling leaves expressions with embedded comments intact"
+
+# Hyprland reloads monitors.lua on any write, undoing the scale just applied,
+# so a config with nothing to persist into must not be rewritten at all.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = 1 * 1 })
+LUA
+written=$(stat -c '%i %y' "$monitor_lua")
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling applies 2x with nothing to persist into"
+[[ $(stat -c '%i %y' "$monitor_lua") == "$written" ]] ||
+  fail "monitor scaling leaves a config with nothing to persist into unwritten"
+pass "monitor scaling leaves a config with nothing to persist into unwritten"
