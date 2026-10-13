@@ -233,3 +233,53 @@ OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
 grep -Fx 'hl.monitor({ output = "eDP-1", --[[ internal panel ]] position = "0x0", scale = 2 })' "$monitor_lua" >/dev/null ||
   fail "monitor scaling persists into an explicit entry with a block comment"
 pass "monitor scaling persists into an explicit entry with a block comment"
+
+# A commented-out rule must not prevent the live variable-based rule saving.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 1
+--[[
+hl.monitor({ output = "eDP-1", scale = 1.25 })
+]]
+hl.monitor({ output = "eDP-1", scale = omarchy_monitor_scale })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists through the live rule after a multi-line comment"
+grep -Fx 'hl.monitor({ output = "eDP-1", scale = 1.25 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves a multi-line commented rule alone"
+pass "monitor scaling ignores rules in multi-line comments"
+
+# Lua accepts single quotes for both output names and automatic scales.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = '', scale = omarchy_monitor_scale })
+hl.monitor({ output = 'eDP-1', scale = 'auto' })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx "hl.monitor({ output = 'eDP-1', scale = 2 })" "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into a single-quoted output rule"
+grep -Fx 'local omarchy_monitor_scale = 1' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the catch-all alone with a single-quoted output"
+pass "monitor scaling supports single-quoted output names and automatic scales"
+
+# Comments containing field-shaped text must not pose as scale fields.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "eDP-1", mode = "preferred", --[[ old, scale = 3, ]] position = "0x0", scale = omarchy_monitor_scale }) -- old, scale = 4,
+LUA
+cp "$monitor_lua" "$test_tmp/expected.lua"
+sed -i 's/^local omarchy_monitor_scale = 1$/local omarchy_monitor_scale = 2/' "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" ||
+  fail "monitor scaling ignores scale fields inside inline and trailing comments"
+pass "monitor scaling ignores scale fields inside inline and trailing comments"
+
+# The scalar terminator applies to quoted values as well as numbers.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", scale = "auto" .. "" })
+LUA
+cp "$monitor_lua" "$test_tmp/expected.lua"
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" ||
+  fail "monitor scaling leaves a quoted scale expression whole"
+pass "monitor scaling leaves a quoted scale expression whole"
